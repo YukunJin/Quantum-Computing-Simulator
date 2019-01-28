@@ -5,6 +5,7 @@ myState2=[(np.sqrt(0.1)*1.j, '101'),(np.sqrt(0.5), '000') ,(-np.sqrt(0.4), '010'
 identity = np.identity(2)
 hadmard = (1/np.sqrt(2))*np.array([[1,1],[1,-1]])
 CNOT = np.array([[1,0,0,0],[0,1,0,0],[0,0,0,1],[0,0,1,0]])
+CNOT_flip = np.array([[1,0,0,0],[0,0,0,1],[0,0,1,0],[0,1,0,0]])
 #Vector2State
 def prettyPrintBinary(state):
     output="";
@@ -23,15 +24,21 @@ def prettyPrintInteger(state):
             output += str(state[i][0]) + "|"+str(int(state[i][1],len(state[i][1])))+">"+"+ ";
     print(output);
 def stateToVec(state):
-    vec = np.zeros(len(state),dtype=complex);
+    size = 2**len(state[0][1])
+    vec = np.zeros(size,dtype=complex);
     for i in range(len(state)):
-        vec[i] = state[i][0]
+        vec[int(state[i][1],2)] = state[i][0]
     return vec;
-prettyPrintBinary(myState2);
-prettyPrintInteger(myState2);
-print(len(stateToVec(myState2)));
+def vecToState(vec):
+    state = []
+    for i in range(len(vec)):
+        state.append((vec[i],str(bin(i)[2:])))
+    return state
+print(stateToVec(myState2))
+print(vecToState(stateToVec(myState2)))
 
-#Quantum Circuit
+
+#Quantum Circuit Components
 #
 #
 #
@@ -51,12 +58,18 @@ def HadmardArray(i,k):
 
 #Return the CNOT matrix with Given controlWire & otherWire
 def CNOTArray(controlWire,otherWire,totalWire):
-    #TODO: Figure out case otherWire>controlWire
-    if controlWire == 0:
-        if totalWire == 2:
-            return CNOT
-        return np.kron(CNOTArray(controlWire,otherWire,totalWire-1),identity)
-    return np.kron(identity,CNOTArray(controlWire-1,otherWire-1,totalWire-1))
+    if controlWire < otherWire:
+        if controlWire == 0:
+            if totalWire == 2:
+                return CNOT
+            return np.kron(CNOTArray(controlWire,otherWire,totalWire-1),identity)
+        return np.kron(identity,CNOTArray(controlWire-1,otherWire,totalWire-1))
+    else:
+        if otherWire == 0:
+            if totalWire == 2:
+                return CNOT_flip
+            return np.kron(CNOTArray(controlWire,otherWire,totalWire-1),identity)
+        return np.kron(identity,CNOTArray(controlWire-1,otherWire-1,totalWire-1))
 
 #Return the Phase matrix on the i-th wire with k-wires and theta
 def PhaseArray(i,k,theta):
@@ -65,3 +78,27 @@ def PhaseArray(i,k,theta):
             return phase(theta)
         return np.kron(PhaseArray(i,k-1,theta),identity)
     return np.kron(identity,PhaseArray(i-1,k-1,theta))
+
+#Read Input from a file and return the numberOfWires and input Circuit as a tuple (int,list)
+def ReadInput(filename):
+    lines = open(filename).readlines()
+    myInput = []
+    numberOfWires = int(lines[0])
+    for line in lines[1:]:
+        myInput.append(line.split())
+    return (numberOfWires,myInput)
+numberOfWires,myInput = ReadInput('p1/test_input.txt')
+print(numberOfWires,myInput)
+
+#Return a list of Matrixs from the input circuit
+def CircuitMatrixList(numberOfWires,myInput):
+    mats = []
+    for gate in myInput:
+        if gate[0] == 'H':
+            mats.append(HadmardArray(int(gate[1]),numberOfWires))
+        elif gate[0] == 'CNOT':
+            mats.append(CNOTArray(int(gate[1]),int(gate[2]),numberOfWires))
+        else:
+            mats.append(PhaseArray(int(gate[1]),numberOfWires,float(gate[2])))
+    return mats
+matrix_stack = CircuitMatrixList(numberOfWires,myInput)
